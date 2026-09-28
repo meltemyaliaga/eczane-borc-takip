@@ -1,0 +1,31 @@
+# Git İzleme Dışı Dosyalar
+
+# Streamlit secrets (gerçek değerler)
+.streamlit/secrets.toml
+
+# Google servis hesabı JSON anahtarı
+*.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Ortam değişkenleri
+.env
