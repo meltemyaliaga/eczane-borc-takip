@@ -45,7 +45,28 @@ def render(user: Dict) -> None:
     st.markdown("# 💊 Borç Verme")
     st.markdown("---")
 
-    # Onay modu
+    # ── Başarı ekranı ─────────────────────────────────────────────────────────
+    if st.session_state.get("bv_success_belge_no"):
+        belge_no = st.session_state["bv_success_belge_no"]
+        st.markdown(f"""
+        <div style="background:#F0FDF4; border:1px solid #86EFAC; border-radius:14px;
+                    padding:36px; text-align:center; margin:20px 0;">
+            <div style="font-size:2.5rem; margin-bottom:12px;">✅</div>
+            <div style="font-size:1.3rem; font-weight:700; color:#166534; margin-bottom:8px;">
+                Belge başarıyla kaydedildi!
+            </div>
+            <div style="font-size:1rem; color:#15803D; font-weight:500;">
+                Belge No: <span style="font-family:monospace; background:#DCFCE7;
+                padding:4px 12px; border-radius:6px;">{belge_no}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("➕ Yeni Borç Gir", type="primary", key="bv_yeni"):
+            del st.session_state["bv_success_belge_no"]
+            st.rerun()
+        return
+
+    # ── Onay modu ─────────────────────────────────────────────────────────────
     if st.session_state.get("bv_confirm_mode"):
         _render_onay(user_id, cari_id, veren_adi)
         return
@@ -306,8 +327,9 @@ def _execute_kaydet(user_id: int, cari_id: int, data: Dict) -> None:
             dagitim=data["dagitim"],
             olusturan_user_id=user_id,
         )
-        st.success(f"✅ Belge başarıyla kaydedildi: **{belge_no}**")
+        # Tüm form state'ini temizle, başarı ekranına geç
         _reset()
+        st.session_state["bv_success_belge_no"] = belge_no
         st.rerun()
     except ValueError as e:
         st.error(str(e))
@@ -316,3 +338,4 @@ def _execute_kaydet(user_id: int, cari_id: int, data: Dict) -> None:
         logger.error("Kayıt hatası: %s", e)
         st.error("Beklenmedik bir hata oluştu. Lütfen tekrar deneyiniz.")
         st.session_state["bv_saving"] = False
+
