@@ -175,7 +175,81 @@ hr { border-color: #E2E8F0 !important; margin: 12px 0 !important; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #F1F5F9; }
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+
+/* ── Geçiş Animasyonu Overlay ── */
+#agy-loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(241, 245, 249, 0.80);
+    backdrop-filter: blur(3px);
+    z-index: 99999;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 14px;
+}
+#agy-loading-overlay.visible { display: flex; }
+
+.agy-spinner {
+    width: 44px; height: 44px;
+    border: 4px solid #E2E8F0;
+    border-top: 4px solid #2563EB;
+    border-radius: 50%;
+    animation: agy-spin 0.75s linear infinite;
+}
+.agy-loading-text {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #64748B;
+}
+@keyframes agy-spin { to { transform: rotate(360deg); } }
 </style>
+""", unsafe_allow_html=True)
+
+# ─── Loading Overlay HTML + JS ────────────────────────────────────────────────
+st.markdown("""
+<div id="agy-loading-overlay">
+    <div class="agy-spinner"></div>
+    <div class="agy-loading-text">Yükleniyor...</div>
+</div>
+
+<script>
+(function() {
+    var overlay = document.getElementById('agy-loading-overlay');
+    if (!overlay) return;
+
+    // Buton tıklamalarında overlay'i göster
+    document.addEventListener('click', function(e) {
+        var el = e.target;
+        for (var i = 0; i < 5; i++) {
+            if (!el) break;
+            if (el.tagName === 'BUTTON' || el.tagName === 'INPUT') {
+                overlay.classList.add('visible');
+                break;
+            }
+            el = el.parentElement;
+        }
+    }, true);
+
+    // Streamlit rerun tamamlandığında overlay'i gizle
+    var appRoot = document.querySelector('.stApp') || document.body;
+    var observer = new MutationObserver(function() {
+        if (overlay.classList.contains('visible')) {
+            overlay.classList.remove('visible');
+        }
+    });
+    observer.observe(appRoot, { childList: true, subtree: true });
+
+    // Güvenlik: max 6 sn sonra her durumda kapat
+    document.addEventListener('click', function() {
+        setTimeout(function() {
+            overlay.classList.remove('visible');
+        }, 6000);
+    }, true);
+})();
+</script>
 """, unsafe_allow_html=True)
 
 

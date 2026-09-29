@@ -1,11 +1,10 @@
 """
-Borç Verme ekranı — st.form kullanmaz, düz widget'larla çalışır.
-Bu sayede Eşit Dağıt butonu sorunsuz çalışır.
+Borç Verme ekranı — sade, sorunsuz form.
 """
 
 import logging
 from decimal import Decimal, InvalidOperation
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import streamlit as st
 
@@ -15,7 +14,7 @@ from services.ilac_service import get_aktif_ilaclar
 from services.auth_service import get_current_cari_id, get_current_user_id
 from utils.calculations import hesapla_kalem_tutari, hesapla_belge_toplami, to_decimal
 from utils.formatting import format_para, format_birim_fiyat, format_miktar, format_tarih
-from utils.validators import validate_miktar, validate_birim_fiyat, validate_esit_dagit
+from utils.validators import validate_miktar, validate_birim_fiyat
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +45,12 @@ def render(user: Dict) -> None:
     st.markdown("# 💊 Borç Verme")
     st.markdown("---")
 
-    # ── Onay modu ────────────────────────────────────────────────────────────
+    # Onay modu
     if st.session_state.get("bv_confirm_mode"):
         _render_onay(user_id, cari_id, veren_adi)
         return
 
-    # ── Veri yükle ───────────────────────────────────────────────────────────
+    # Veri yükle
     aktif_ilaclar = get_aktif_ilaclar()
     aktif_cariler = [c for c in get_aktif_cariler() if int(c["Cari ID"]) != cari_id]
 
@@ -70,7 +69,7 @@ def render(user: Dict) -> None:
     cari_ids = list(cari_map.keys())
     cari_adlar = [cari_map[i] for i in cari_ids]
 
-    # ── Başlık ───────────────────────────────────────────────────────────────
+    # Borç veren bilgisi
     st.markdown(f"""
     <div style="background:#EFF6FF; border:1px solid #BFDBFE; border-radius:10px;
                 padding:12px 16px; margin-bottom:20px; font-size:0.95rem; color:#1E40AF;">
@@ -78,7 +77,7 @@ def render(user: Dict) -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Satır 1: İlaç ────────────────────────────────────────────────────────
+    # ── Form alanları ─────────────────────────────────────────────────────────
     secili_ilac_idx = st.selectbox(
         "İlaç *",
         options=range(len(ilac_ids)),
@@ -87,7 +86,6 @@ def render(user: Dict) -> None:
     )
     secili_ilac_id = ilac_ids[secili_ilac_idx]
 
-    # ── Satır 2: Lot Tarihi + Fiyat ──────────────────────────────────────────
     col1, col2 = st.columns(2)
     with col1:
         lot_tarihi = st.date_input("Lot / Alış Tarihi *", key="bv_lot")
@@ -98,7 +96,6 @@ def render(user: Dict) -> None:
             key="bv_fiyat",
         )
 
-    # ── Satır 3: Toplam Miktar ───────────────────────────────────────────────
     toplam_miktar_str = st.text_input(
         "Toplam Miktar *",
         placeholder="Tam sayı giriniz (örn: 750)",
@@ -108,16 +105,15 @@ def render(user: Dict) -> None:
     st.markdown("---")
     st.markdown("**Borç Alan Cariler**")
 
-    # ── Çoklu Cari Seçimi ────────────────────────────────────────────────────
     secili_idxs = st.multiselect(
-        "Borç Alan Cari(ler)",
+        "Borç Alan Cari(ler) Seçin *",
         options=range(len(cari_ids)),
         format_func=lambda x: cari_adlar[x],
         key="bv_karsi_idxs",
     )
     secili_cari_ids = [cari_ids[i] for i in secili_idxs]
 
-    # ── Kalem Miktarları ─────────────────────────────────────────────────────
+    # Kalem miktarları
     dagitim_miktarlar: Dict[int, str] = {}
     if secili_cari_ids:
         st.markdown("**Kalem Miktarları:**")
@@ -128,70 +124,45 @@ def render(user: Dict) -> None:
                 placeholder="0",
             )
 
-    # ── Eşit Dağıt + Kaydet butonları ────────────────────────────────────────
-    st.markdown("---")
-    col_e, col_k = st.columns([2, 5])
-
-    with col_e:
-        if st.button("⚖️ Eşit Dağıt", key="bv_esit_btn", use_container_width=True):
-            ok_m, msg_m = validate_miktar(toplam_miktar_str or "")
-            if not ok_m:
-                st.error(f"Toplam miktar: {msg_m}")
-            elif not secili_cari_ids:
-                st.error("Önce borç alan cari seçin.")
-            else:
-                ok_e, msg_e = validate_esit_dagit(int(toplam_miktar_str), len(secili_cari_ids))
-                if not ok_e:
-                    st.error(msg_e)
-                else:
-                    esit = int(toplam_miktar_str) // len(secili_cari_ids)
-                    for cid in secili_cari_ids:
-                        st.session_state[f"bv_miktar_{cid}"] = str(esit)
-                    st.rerun()
-
-    with col_k:
-        kaydet_disabled = st.session_state.get("bv_saving", False)
-        if st.button("💾 Kaydet", key="bv_kaydet_btn", type="primary",
-                     use_container_width=True, disabled=kaydet_disabled):
-            _handle_kaydet(
-                cari_id, user_id, secili_ilac_id, lot_tarihi,
-                birim_fiyat_str, toplam_miktar_str,
-                secili_cari_ids, dagitim_miktarlar, cari_map, ilac_map, veren_adi,
-            )
-
-    # ── Canlı Hesaplama Önizlemesi ────────────────────────────────────────────
+    # ── Canlı önizleme ────────────────────────────────────────────────────────
     if secili_cari_ids and birim_fiyat_str:
-        fiyat = _parse_fiyat(birim_fiyat_str)
-        if fiyat:
-            st.markdown("---")
-            st.markdown("**Hesaplama Önizlemesi:**")
+        fiyat_p = _parse_fiyat(birim_fiyat_str)
+        if fiyat_p:
             toplam_dagitim = 0
+            satirlar = []
             for cid in secili_cari_ids:
                 m_str = dagitim_miktarlar.get(cid, "") or "0"
                 ok, _ = validate_miktar(m_str)
-                if ok:
+                if ok and int(m_str) > 0:
                     m = int(m_str)
-                    tutar = hesapla_kalem_tutari(m, to_decimal(fiyat))
+                    tutar = hesapla_kalem_tutari(m, to_decimal(fiyat_p))
                     toplam_dagitim += m
-                    st.markdown(
-                        f"&nbsp;&nbsp;• **{cari_map[cid]}:** "
-                        f"{format_miktar(m)} × {format_birim_fiyat(fiyat)} = "
-                        f"**{format_para(tutar)}**"
-                    )
+                    satirlar.append(f"&nbsp;&nbsp;• **{cari_map[cid]}:** {format_miktar(m)} adet → **{format_para(tutar)}**")
+            if satirlar:
+                st.markdown("---")
+                st.markdown("**Hesaplama Önizlemesi:**")
+                for s in satirlar:
+                    st.markdown(s)
+                ok_t, _ = validate_miktar(toplam_miktar_str or "0")
+                if ok_t and int(toplam_miktar_str or "0") > 0:
+                    belge_t = hesapla_belge_toplami(int(toplam_miktar_str), to_decimal(fiyat_p))
+                    st.markdown(f"**Belge Toplamı:** {format_para(belge_t)}")
+                    if toplam_dagitim != int(toplam_miktar_str):
+                        st.warning(
+                            f"⚠️ Dağıtım toplamı ({format_miktar(toplam_dagitim)}) "
+                            f"≠ Toplam miktar ({toplam_miktar_str})"
+                        )
 
-            ok_t, _ = validate_miktar(toplam_miktar_str or "0")
-            if ok_t and int(toplam_miktar_str) > 0:
-                belge_t = hesapla_belge_toplami(int(toplam_miktar_str), to_decimal(fiyat))
-                st.markdown(f"**Belge Toplamı:** {format_para(belge_t)}")
-                eslesme = toplam_dagitim == int(toplam_miktar_str)
-                if not eslesme and toplam_dagitim > 0:
-                    st.warning(
-                        f"⚠️ Dağıtım toplamı **{format_miktar(toplam_dagitim)}** "
-                        f"≠ Toplam miktar **{toplam_miktar_str}**"
-                    )
+    # ── Kaydet ────────────────────────────────────────────────────────────────
+    st.markdown("---")
+    if st.button("💾 Kaydet", key="bv_kaydet_btn", type="primary", use_container_width=False,
+                 disabled=st.session_state.get("bv_saving", False)):
+        _handle_kaydet(
+            cari_id, user_id, secili_ilac_id, lot_tarihi,
+            birim_fiyat_str, toplam_miktar_str,
+            secili_cari_ids, dagitim_miktarlar, cari_map, ilac_map, veren_adi,
+        )
 
-
-# ─── Kaydet İşleyici ─────────────────────────────────────────────────────────
 
 def _handle_kaydet(cari_id, user_id, ilac_id, lot_tarihi, birim_fiyat_str,
                    toplam_miktar_str, secili_cari_ids, dagitim_miktarlar,
@@ -233,7 +204,8 @@ def _handle_kaydet(cari_id, user_id, ilac_id, lot_tarihi, birim_fiyat_str,
             dagitim.append({"cari_id": cid, "miktar": m})
             toplam_dagitim += m
 
-    if ok_m and dagitim and toplam_dagitim != int(toplam_miktar_str):
+    ok_m2, _ = validate_miktar(toplam_miktar_str or "")
+    if ok_m2 and dagitim and toplam_dagitim != int(toplam_miktar_str):
         hatalar.append(
             f"Dağıtım toplamı ({format_miktar(toplam_dagitim)}) "
             f"≠ Toplam miktar ({toplam_miktar_str})."
@@ -257,8 +229,6 @@ def _handle_kaydet(cari_id, user_id, ilac_id, lot_tarihi, birim_fiyat_str,
     st.session_state["bv_confirm_mode"] = True
     st.rerun()
 
-
-# ─── Onay Ekranı ─────────────────────────────────────────────────────────────
 
 def _render_onay(user_id: int, cari_id: int, veren_adi: str) -> None:
     data = st.session_state.get("bv_confirm_data", {})
@@ -303,7 +273,7 @@ def _render_onay(user_id: int, cari_id: int, veren_adi: str) -> None:
         m = s["miktar"]
         tutar = hesapla_kalem_tutari(m, to_decimal(birim))
         st.markdown(f"""
-        <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #F8FAFC;">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F8FAFC;">
             <span style="font-weight:500;color:#1E293B">{cari_map.get(cid, cid)}</span>
             <span style="color:#64748B">{format_miktar(m)} adet</span>
             <span style="font-weight:600;color:#1E293B">{format_para(tutar)}</span>
@@ -336,7 +306,7 @@ def _execute_kaydet(user_id: int, cari_id: int, data: Dict) -> None:
             dagitim=data["dagitim"],
             olusturan_user_id=user_id,
         )
-        st.success(f"✅ Belge başarıyla oluşturuldu: **{belge_no}**")
+        st.success(f"✅ Belge başarıyla kaydedildi: **{belge_no}**")
         _reset()
         st.rerun()
     except ValueError as e:
