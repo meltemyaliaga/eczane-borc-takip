@@ -352,16 +352,13 @@ def _seviye3(cari_a: int, cari_b: int, user_id: int):
     # Başlık + metrikler
     st.markdown(f"## {cari_a_adi} ↔ {cari_b_adi}")
 
-    col1, col2, col3 = st.columns(3)
+    aktif_h = [h for h in hareketler if h.get("durum") != DURUM_SILINDI]
+
+    col1, col2 = st.columns(2)
     with col1:
-        st.metric(f"Net Bakiye ({cari_a_adi})", format_bakiye(net))
+        st.metric("Net Bakiye", format_bakiye(net))
     with col2:
-        aktif_h = [h for h in hareketler if h.get("durum") != DURUM_SILINDI]
-        st.metric("Aktif İşlem Sayısı", len(aktif_h))
-    with col3:
-        verilen = sum(hesapla_kalem_tutari(int(h.get("kalem_miktari", 0)), h.get("birim_alis_fiyati", "0"))
-                      for h in aktif_h if int(h.get("borc_veren_cari_id", 0)) == cari_a)
-        st.metric(f"{cari_a_adi} Verdi", format_para(verilen))
+        st.metric("Aktif İşlem", len(aktif_h))
 
     st.markdown("---")
 
