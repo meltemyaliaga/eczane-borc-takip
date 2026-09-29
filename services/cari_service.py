@@ -32,7 +32,7 @@ def _now_istanbul() -> datetime:
 
 def get_all_cariler() -> List[Dict]:
     """Tüm carileri döndürür (aktif + pasif)."""
-    return sheets_client.get_all_records(SHEET_CARILER)
+    return sheets_client.get_all_records_cached(SHEET_CARILER)
 
 
 def get_aktif_cariler() -> List[Dict]:
@@ -49,10 +49,6 @@ def get_cari_by_id(cari_id: int) -> Optional[Dict]:
 
 
 def get_cari_map() -> Dict[int, str]:
-    """
-    {cari_id: cari_adi} sözlüğü döndürür.
-    UI'da ID → isim çözümlemesi için kullanılır.
-    """
     return {
         int(c["Cari ID"]): str(c["Cari Adı"])
         for c in get_all_cariler()
@@ -61,7 +57,6 @@ def get_cari_map() -> Dict[int, str]:
 
 
 def _get_next_cari_id() -> int:
-    """Sıradaki Cari ID'yi üretir."""
     cariler = get_all_cariler()
     if not cariler:
         return 1
@@ -69,12 +64,6 @@ def _get_next_cari_id() -> int:
 
 
 def create_cari(cari_adi: str) -> Dict:
-    """
-    Yeni cari oluşturur.
-
-    Raises:
-        ValueError: Geçersiz ad veya duplicate ad.
-    """
     cari_adi = cari_adi.strip()
     mevcut_adlar = [str(c.get("Cari Adı", "")) for c in get_all_cariler()]
     ok, msg = validate_cari_adi(cari_adi, mevcut_adlar)
@@ -83,27 +72,18 @@ def create_cari(cari_adi: str) -> Dict:
 
     new_id = _get_next_cari_id()
     olusturulma = _now_istanbul().strftime("%Y-%m-%d %H:%M:%S")
-
     row = [new_id, cari_adi, DURUM_AKTIF, olusturulma]
     sheets_client.append_row(SHEET_CARILER, row)
-
+    sheets_client.invalidate_cache()
     return {"Cari ID": new_id, "Cari Adı": cari_adi, "Durum": DURUM_AKTIF, "Oluşturulma Tarihi": olusturulma}
 
 
 def update_cari_adi(cari_id: int, yeni_ad: str, guncelleme_yapan_cari_id: Optional[int] = None) -> None:
-    """
-    Cari adını günceller.
-    Benzersizlik kontrolü yapılır (kendi adı hariç).
-
-    Raises:
-        ValueError: Geçersiz ad veya duplicate.
-    """
     yeni_ad = yeni_ad.strip()
     if not yeni_ad:
         raise ValueError("Cari adı boş olamaz.")
 
     mevcut_cariler = get_all_cariler()
-    # Kendi mevcut adını hariç tut
     diger_adlar = [
         str(c.get("Cari Adı", ""))
         for c in mevcut_cariler
@@ -118,18 +98,12 @@ def update_cari_adi(cari_id: int, yeni_ad: str, guncelleme_yapan_cari_id: Option
     )
     if not updated:
         raise ValueError("Cari bulunamadı.")
+    sheets_client.invalidate_cache()
 
 
 def set_cari_durum(cari_id: int, yeni_durum: str, yapan_cari_id: Optional[int] = None) -> None:
-    """
-    Cari durumunu Aktif veya Pasif yapar.
-
-    Raises:
-        ValueError: Admin kendi carisini pasifleştirmeye çalışırsa.
-    """
     if yeni_durum == DURUM_PASIF and cari_id == yapan_cari_id:
         raise ValueError("Kendi bağlı olduğunuz cariyi pasif yapamazsınız.")
-
     if yeni_durum not in [DURUM_AKTIF, DURUM_PASIF]:
         raise ValueError(f"Geçersiz durum: {yeni_durum}")
 
@@ -138,3 +112,5 @@ def set_cari_durum(cari_id: int, yeni_durum: str, yapan_cari_id: Optional[int] =
     )
     if not updated:
         raise ValueError("Cari bulunamadı.")
+    sheets_client.invalidate_cache()
+

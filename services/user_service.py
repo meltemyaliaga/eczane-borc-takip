@@ -35,7 +35,7 @@ def _now_istanbul() -> datetime:
 
 def get_all_users() -> List[Dict]:
     """Tüm kullanıcıları döndürür."""
-    return sheets_client.get_all_records(SHEET_KULLANICILAR)
+    return sheets_client.get_all_records_cached(SHEET_KULLANICILAR)
 
 
 def get_user_by_id(user_id: int) -> Optional[Dict]:
@@ -85,6 +85,7 @@ def create_user(kullanici_adi: str, sifre: str, cari_id: int) -> Dict:
 
     row = [new_id, kullanici_adi, sifre_hash, cari_id, ROL_USER, "", olusturulma]
     sheets_client.append_row(SHEET_KULLANICILAR, row)
+    sheets_client.invalidate_cache()
 
     return {
         "User ID": new_id,
@@ -95,12 +96,6 @@ def create_user(kullanici_adi: str, sifre: str, cari_id: int) -> Dict:
 
 
 def update_kullanici_adi(user_id: int, yeni_ad: str) -> None:
-    """
-    Kullanıcı adını günceller.
-
-    Raises:
-        ValueError: Duplicate kullanıcı adı.
-    """
     yeni_ad = yeni_ad.strip()
     mevcut_users = get_all_users()
     diger_adlar = [
@@ -117,16 +112,10 @@ def update_kullanici_adi(user_id: int, yeni_ad: str) -> None:
     )
     if not updated:
         raise ValueError("Kullanıcı bulunamadı.")
+    sheets_client.invalidate_cache()
 
 
 def change_password(user_id: int, mevcut_sifre: str, yeni_sifre: str, yeni_sifre_tekrar: str) -> None:
-    """
-    Kullanıcının kendi şifresini değiştirir.
-    Mevcut şifre doğrulanır.
-
-    Raises:
-        ValueError: Geçersiz mevcut şifre veya eşleşmeyen yeni şifre.
-    """
     from services.auth_service import verify_sifre
 
     ok, msg = validate_sifre(yeni_sifre, yeni_sifre_tekrar)
@@ -145,27 +134,15 @@ def change_password(user_id: int, mevcut_sifre: str, yeni_sifre: str, yeni_sifre
     sheets_client.update_row_field(
         SHEET_KULLANICILAR, "User ID", str(user_id), "Şifre Hash", new_hash, []
     )
+    sheets_client.invalidate_cache()
 
 
 def move_user_to_cari(user_id: int, yeni_cari_id: int) -> None:
-    """
-    Kullanıcıyı başka bir cariye taşır (Admin işlemi).
-
-    Kurallar:
-    - Hedef cari başka bir kullanıcıya bağlıysa hata.
-    - Hedef cari pasifse otomatik Aktif yapılır.
-    - Tarihsel işlemler değiştirilmez.
-
-    Raises:
-        ValueError: İş kuralı ihlali.
-    """
-    # Hedef cari başka kullanıcıya bağlı mı?
     for u in get_all_users():
         if int(u.get("Cari ID", -1)) == yeni_cari_id and int(u.get("User ID", -1)) != user_id:
             raise ValueError("Hedef cari zaten başka bir kullanıcıya bağlı.")
 
-    # Hedef cariyi Aktif yap (pasifse)
-    cariler = sheets_client.get_all_records(SHEET_CARILER)
+    cariler = sheets_client.get_all_records_cached(SHEET_CARILER)
     hedef_cari = None
     for c in cariler:
         if int(c.get("Cari ID", -1)) == yeni_cari_id:
@@ -180,9 +157,10 @@ def move_user_to_cari(user_id: int, yeni_cari_id: int) -> None:
             SHEET_CARILER, "Cari ID", str(yeni_cari_id), "Durum", DURUM_AKTIF, []
         )
 
-    # Kullanıcının Cari ID'sini güncelle
     updated = sheets_client.update_row_field(
         SHEET_KULLANICILAR, "User ID", str(user_id), "Cari ID", yeni_cari_id, []
     )
     if not updated:
         raise ValueError("Kullanıcı bulunamadı.")
+    sheets_client.invalidate_cache()
+

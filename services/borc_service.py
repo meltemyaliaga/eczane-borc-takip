@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 def get_all_hareketler() -> List[Dict]:
     """Tüm BORC_HAREKET kayıtlarını döndürür (aktif + silindi)."""
-    return sheets_client.get_all_records(SHEET_BORC_HAREKET)
+    return sheets_client.get_all_records_cached(SHEET_BORC_HAREKET)
 
 
 def get_aktif_hareketler() -> List[Dict]:
@@ -331,7 +331,7 @@ def create_borc_belgesi(
         dagitim=dagitim,
         olusturan_user_id=olusturan_user_id,
     )
-
+    sheets_client.invalidate_cache()
     return belge_no
 
 
@@ -341,32 +341,22 @@ def create_borc_belgesi(
 
 
 def delete_borc_belgesi(belge_no: str, yapan_user_id: int) -> None:
-    """
-    Borç belgesini soft-delete ile siler.
-
-    Yetki kuralı: Yalnızca belgeyi oluşturan kullanıcı silebilir.
-
-    Raises:
-        ValueError: Yetki hatası veya belge bulunamazsa.
-        RuntimeError: Yazma hatası.
-    """
     hareketler = get_hareketler_normalized()
     belge_satirlari = [h for h in hareketler if h["Belge No"] == belge_no]
 
     if not belge_satirlari:
         raise ValueError("Belge bulunamadı.")
 
-    # Yetki kontrolü: oluşturan kullanıcı kim?
     olusturan_user_id = int(belge_satirlari[0].get("Oluşturan User ID", 0))
     if olusturan_user_id != yapan_user_id:
         raise ValueError("Bu belgeyi yalnızca oluşturan kullanıcı silebilir.")
 
-    # Zaten silinmiş mi?
     aktif_satirlar = [h for h in belge_satirlari if h["durum"] == DURUM_AKTIF]
     if not aktif_satirlar:
         raise ValueError("Bu belge zaten silinmiş.")
 
     sheets_client.soft_delete_borc_belgesi(belge_no, yapan_user_id)
+    sheets_client.invalidate_cache()
 
 
 # ---------------------------------------------------------------------------

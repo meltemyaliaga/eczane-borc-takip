@@ -91,6 +91,30 @@ def get_all_records(sheet_name: str) -> List[Dict[str, Any]]:
         raise RuntimeError(f"Veri okunamadı: {sheet_name}") from e
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def get_all_records_cached(sheet_name: str) -> List[Dict[str, Any]]:
+    """
+    Önbellekli veri okuma — 30 saniye TTL.
+
+    Her Streamlit yeniden çalışmasında Google API'ye istek atmak yerine
+    önbellekten okur. Bu sayede:
+    - 429 Quota Exceeded hatası oluşmaz.
+    - Sayfa geçişleri anlık hızlanır.
+
+    Write operasyonlarından sonra invalidate_cache() çağrılmalıdır.
+    """
+    return get_all_records(sheet_name)
+
+
+def invalidate_cache() -> None:
+    """
+    Tüm önbelleği temizler.
+    Herhangi bir write işleminden (append, update, delete) sonra çağrılır.
+    """
+    st.cache_data.clear()
+    logger.debug("Önbellek temizlendi.")
+
+
 def get_all_values(sheet_name: str) -> List[List[str]]:
     """
     Ham değerleri (header dahil) satır listesi olarak döndürür.

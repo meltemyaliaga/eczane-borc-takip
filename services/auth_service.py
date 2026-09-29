@@ -108,7 +108,7 @@ def login(kullanici_adi: str, sifre: str) -> Dict:
 
     # Tüm kullanıcıları oku
     try:
-        users = sheets_client.get_all_records(SHEET_KULLANICILAR)
+        users = sheets_client.get_all_records_cached(SHEET_KULLANICILAR)
     except Exception as e:
         raise RuntimeError("Kullanıcı verileri okunamadı.") from e
 
@@ -144,7 +144,7 @@ def login(kullanici_adi: str, sifre: str) -> Dict:
 def get_cari_by_id(cari_id: int) -> Optional[Dict]:
     """Cari ID'ye göre cari kaydını döndürür."""
     try:
-        cariler = sheets_client.get_all_records(SHEET_CARILER)
+        cariler = sheets_client.get_all_records_cached(SHEET_CARILER)
     except Exception:
         return None
     for c in cariler:
@@ -264,7 +264,7 @@ def refresh_user_data_in_session() -> None:
     if not user_id:
         return
     try:
-        users = sheets_client.get_all_records(SHEET_KULLANICILAR)
+        users = sheets_client.get_all_records_cached(SHEET_KULLANICILAR)
         for u in users:
             if int(u.get("User ID", 0)) == user_id:
                 st.session_state["user_data"] = u
