@@ -1,31 +1,16 @@
 """
 Streamlit uygulaması giriş noktası.
-
-Sorumluluklar:
-- Sayfa yapılandırması
-- Oturum kontrolü
-- Sidebar navigasyon
-- Sayfa yönlendirme
 """
 
 import logging
-
 import streamlit as st
 
 from config import ROL_ADMIN
 from services import auth_service
 from ui import login, dashboard, borc_verme, cari_yonetimi, ilac_yonetimi, profilim
 
-# Logging yapılandırması
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Sayfa Yapılandırması
-# ---------------------------------------------------------------------------
 
 st.set_page_config(
     page_title="Eczane Borç Takip",
@@ -34,49 +19,191 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Minimal stil ayarlamaları
-st.markdown(
-    """
-    <style>
-    /* Sidebar başlık */
-    .css-1d391kg { padding-top: 1rem; }
-    /* Tablo hücre sınırlarını belirginleştir */
-    div[data-testid="stHorizontalBlock"] > div { border-bottom: 1px solid #f0f0f0; padding: 4px 0; }
-    /* Hata kutusu */
-    div[data-testid="stAlert"] { border-radius: 6px; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# ─── Modern CSS ───────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Genel font */
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Ana arka plan */
+.stApp { background-color: #F1F5F9; }
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #1E293B 0%, #0F172A 100%);
+    border-right: none;
+}
+section[data-testid="stSidebar"] * { color: #E2E8F0 !important; }
+section[data-testid="stSidebar"] .stRadio label {
+    color: #CBD5E1 !important;
+    font-size: 0.95rem;
+    padding: 6px 0;
+}
+section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {
+    color: #94A3B8 !important;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+/* Başlıklar */
+h1 { font-size: 1.75rem !important; font-weight: 700 !important; color: #1E293B !important; }
+h2 { font-size: 1.4rem !important; font-weight: 600 !important; color: #1E293B !important; }
+h3 { font-size: 1.1rem !important; font-weight: 600 !important; color: #334155 !important; }
+
+/* Metric kartları */
+[data-testid="metric-container"] {
+    background: white;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 16px 20px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+[data-testid="metric-container"] label {
+    font-size: 0.8rem !important;
+    color: #64748B !important;
+    font-weight: 500 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+}
+
+/* Form alanları */
+.stTextInput input, .stSelectbox select, .stDateInput input {
+    border-radius: 8px !important;
+    border: 1px solid #CBD5E1 !important;
+    font-size: 0.95rem !important;
+    transition: border-color 0.2s;
+}
+.stTextInput input:focus { border-color: #2563EB !important; box-shadow: 0 0 0 3px rgba(37,99,235,0.1) !important; }
+
+/* Butonlar */
+.stButton > button {
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    padding: 0.5rem 1.2rem !important;
+    transition: all 0.2s !important;
+    border: none !important;
+}
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #2563EB, #1D4ED8) !important;
+    color: white !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: linear-gradient(135deg, #1D4ED8, #1E40AF) !important;
+    box-shadow: 0 4px 12px rgba(37,99,235,0.35) !important;
+    transform: translateY(-1px) !important;
+}
+.stButton > button[kind="secondary"] {
+    background: white !important;
+    color: #374151 !important;
+    border: 1px solid #D1D5DB !important;
+}
+.stButton > button[kind="secondary"]:hover {
+    background: #F9FAFB !important;
+    border-color: #9CA3AF !important;
+}
+
+/* Uyarı ve bilgi kutuları */
+.stAlert {
+    border-radius: 10px !important;
+    border-left-width: 4px !important;
+}
+
+/* Expander */
+.streamlit-expanderHeader {
+    border-radius: 10px !important;
+    background: white !important;
+    border: 1px solid #E2E8F0 !important;
+    font-weight: 600 !important;
+    color: #1E293B !important;
+    padding: 12px 16px !important;
+}
+.streamlit-expanderContent {
+    border: 1px solid #E2E8F0 !important;
+    border-top: none !important;
+    border-radius: 0 0 10px 10px !important;
+    background: white !important;
+    padding: 16px !important;
+}
+
+/* Tab */
+.stTabs [data-baseweb="tab-list"] {
+    background: white;
+    border-radius: 10px;
+    padding: 4px;
+    border: 1px solid #E2E8F0;
+    gap: 4px;
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    color: #64748B !important;
+}
+.stTabs [aria-selected="true"] {
+    background: #2563EB !important;
+    color: white !important;
+}
+
+/* Tablo satır vurgusu */
+[data-testid="stHorizontalBlock"]:hover { background: rgba(37,99,235,0.03); border-radius: 8px; }
+
+/* Download butonu */
+.stDownloadButton > button {
+    background: white !important;
+    color: #2563EB !important;
+    border: 1px solid #2563EB !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+}
+.stDownloadButton > button:hover {
+    background: #EFF6FF !important;
+}
+
+/* Divider */
+hr { border-color: #E2E8F0 !important; margin: 12px 0 !important; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #F1F5F9; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+</style>
+""", unsafe_allow_html=True)
 
 
-# ---------------------------------------------------------------------------
-# Oturum Kontrolü
-# ---------------------------------------------------------------------------
-
+# ─── Oturum Kontrolü ─────────────────────────────────────────────────────────
 def _check_session() -> bool:
-    """
-    Oturumu kontrol eder.
-    Geçersizse destroy_session çağırır ve False döndürür.
-    """
     if not st.session_state.get("authenticated"):
         return False
     return auth_service.check_and_refresh_session()
 
 
-# ---------------------------------------------------------------------------
-# Sidebar Navigasyon
-# ---------------------------------------------------------------------------
-
+# ─── Sidebar ─────────────────────────────────────────────────────────────────
 def _render_sidebar(user: dict) -> str:
-    """
-    Sidebar'ı çizer ve seçilen sayfayı döndürür.
-    """
     with st.sidebar:
-        st.markdown("## 💊 Eczane Borç Takip")
-        st.markdown("---")
+        # Logo / Başlık
+        st.markdown("""
+        <div style="padding: 8px 0 20px 0; border-bottom: 1px solid #334155; margin-bottom: 20px;">
+            <div style="font-size: 1.5rem; font-weight: 700; color: #F8FAFC; letter-spacing: -0.5px;">
+                💊 Borç Takip
+            </div>
+            <div style="font-size: 0.75rem; color: #64748B; margin-top: 2px;">
+                Eczaneler Arası Borç Sistemi
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
+        # Kullanıcı bilgisi
         kullanici_adi = user.get("Kullanıcı Adı", "")
+        rol = str(user.get("Rol", "")).upper()
         cari_id = int(user.get("Cari ID", 0))
 
         try:
@@ -86,51 +213,36 @@ def _render_sidebar(user: dict) -> str:
         except Exception:
             cari_adi = ""
 
-        st.markdown(f"**{kullanici_adi}**")
-        if cari_adi:
-            st.markdown(f"_{cari_adi}_")
-        st.markdown("---")
+        rol_badge = "🔴 Admin" if rol == ROL_ADMIN else "🟢 Kullanıcı"
+        st.markdown(f"""
+        <div style="background: rgba(255,255,255,0.06); border-radius: 10px; padding: 12px 14px; margin-bottom: 20px;">
+            <div style="font-weight: 600; font-size: 0.95rem; color: #F1F5F9;">{kullanici_adi}</div>
+            <div style="font-size: 0.8rem; color: #94A3B8; margin-top: 2px;">{cari_adi}</div>
+            <div style="font-size: 0.75rem; color: #64748B; margin-top: 6px;">{rol_badge}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        # Menü yapılandırması
-        rol = str(user.get("Rol", "")).upper()
+        # Menü
+        st.markdown('<div style="font-size:0.7rem; color:#475569; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px;">MENÜ</div>', unsafe_allow_html=True)
+
         if rol == ROL_ADMIN:
-            sayfa_listesi = [
-                "📊 Dashboard",
-                "💊 Borç Verme",
-                "🏥 Cari Yönetimi",
-                "📋 İlaç Yönetimi",
-                "👤 Profilim",
-            ]
+            sayfalar = ["📊 Dashboard", "💊 Borç Verme", "🏥 Cari Yönetimi", "📋 İlaç Yönetimi", "👤 Profilim"]
         else:
-            sayfa_listesi = [
-                "📊 Dashboard",
-                "💊 Borç Verme",
-                "📋 İlaç Yönetimi",
-                "👤 Profilim",
-            ]
+            sayfalar = ["📊 Dashboard", "💊 Borç Verme", "📋 İlaç Yönetimi", "👤 Profilim"]
 
-        secili = st.radio(
-            "Menü",
-            sayfa_listesi,
-            label_visibility="collapsed",
-        )
+        secili = st.radio("", sayfalar, label_visibility="collapsed")
 
-        st.markdown("---")
-        if st.button("🚪 Çıkış Yap", use_container_width=True):
+        st.markdown("<div style='height: 40px'></div>", unsafe_allow_html=True)
+        if st.button("🚪 Çıkış Yap", use_container_width=True, type="secondary"):
             auth_service.destroy_session()
             st.rerun()
 
     return secili
 
 
-# ---------------------------------------------------------------------------
-# Ana Uygulama
-# ---------------------------------------------------------------------------
-
+# ─── Ana Uygulama ─────────────────────────────────────────────────────────────
 def main() -> None:
-    # Oturum kontrolü
     if not _check_session():
-        # Çıkış sebebi varsa session_state'te tutulur, login ekranında gösterilir
         login.render()
         return
 
@@ -139,25 +251,22 @@ def main() -> None:
         login.render()
         return
 
-    # Sidebar + sayfa seçimi
-    secili_sayfa = _render_sidebar(user)
-
-    # Yetki koruması: Cari Yönetimi yalnızca Admin
+    secili = _render_sidebar(user)
     rol = str(user.get("Rol", "")).upper()
-    if "Cari Yönetimi" in secili_sayfa and rol != ROL_ADMIN:
+
+    if "Cari Yönetimi" in secili and rol != ROL_ADMIN:
         st.error("Bu sayfaya erişim yetkiniz yok.")
         return
 
-    # Sayfa yönlendirme
-    if "Dashboard" in secili_sayfa:
+    if "Dashboard" in secili:
         dashboard.render(user)
-    elif "Borç Verme" in secili_sayfa:
+    elif "Borç Verme" in secili:
         borc_verme.render(user)
-    elif "Cari Yönetimi" in secili_sayfa:
+    elif "Cari Yönetimi" in secili:
         cari_yonetimi.render(user)
-    elif "İlaç Yönetimi" in secili_sayfa:
+    elif "İlaç Yönetimi" in secili:
         ilac_yonetimi.render(user)
-    elif "Profilim" in secili_sayfa:
+    elif "Profilim" in secili:
         profilim.render(user)
 
 
