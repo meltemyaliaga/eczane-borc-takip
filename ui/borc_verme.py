@@ -109,7 +109,7 @@ def render(user: Dict) -> None:
 
     col1, col2 = st.columns(2)
     with col1:
-        lot_tarihi = st.date_input("Lot / Alış Tarihi *", key="bv_lot")
+        lot_tarihi = st.date_input("Lot / Alış Tarihi *", key="bv_lot", format="DD.MM.YYYY")
     with col2:
         birim_fiyat_str = st.text_input(
             "Birim Alış Fiyatı (TL) *",

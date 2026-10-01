@@ -66,26 +66,30 @@ def format_miktar(miktar: int) -> str:
 
 def format_tarih(tarih: Union[str, date, datetime]) -> str:
     """
-    Tarihi DD.MM.YYYY formatında gösterir.
+    Tarihi daima Gün.Ay.Yıl (DD.MM.YYYY) formatında gösterir.
 
     Giriş formatları:
-        str: "YYYY-MM-DD" veya "DD.MM.YYYY"
+        str: "YYYY-MM-DD", "YYYY/MM/DD", "DD.MM.YYYY", "DD/MM/YYYY" vb.
         date / datetime nesnesi
     """
-    if isinstance(tarih, str):
-        tarih = tarih.strip()
-        if not tarih:
-            return ""
-        if "." in tarih:
-            # Zaten Türkçe formatta
-            return tarih
+    if not tarih:
+        return ""
+    if isinstance(tarih, (datetime, date)):
+        return tarih.strftime("%d.%m.%Y")
+
+    tarih_str = str(tarih).strip()
+    if not tarih_str:
+        return ""
+
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d.%m.%Y", "%d/%m/%Y", "%Y.%m.%d", "%d-%m-%Y"):
         try:
-            tarih = datetime.strptime(tarih, "%Y-%m-%d").date()
+            d = datetime.strptime(tarih_str, fmt).date()
+            return d.strftime("%d.%m.%Y")
         except ValueError:
-            return tarih  # Bilinmeyen format; olduğu gibi döndür
-    if isinstance(tarih, datetime):
-        tarih = tarih.date()
-    return tarih.strftime("%d.%m.%Y")
+            continue
+
+    return tarih_str
+
 
 
 def format_datetime_tr(dt: datetime) -> str:
