@@ -12,7 +12,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
 from services import borc_service, cari_service
-from services.ilac_service import get_ilac_map
+from services.ilac_service import get_ilac_map, get_ilac_kdv_map
 from utils.calculations import hesapla_kalem_tutari, hesapla_iliski_bakiyesi, to_decimal
 from utils.formatting import format_bakiye, format_para, format_tarih, format_birim_fiyat, format_miktar
 from config import DURUM_AKTIF, DURUM_SILINDI
@@ -88,34 +88,43 @@ def _excel_dashboard(data: List[Dict]) -> bytes:
 
 
 def _excel_hareket(hareketler: List[Dict], cari_a_adi: str, cari_b_adi: str,
-                   cari_a: int, ilac_map: Dict) -> bytes:
+                   cari_a: int, ilac_map: Dict, kdv_map: Dict) -> bytes:
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Hareketler"
     hf = PatternFill("solid", fgColor="1E293B")
     hfont = Font(bold=True, color="FFFFFF")
     basliklar = ["Belge No", "Lot Tarihi", "Hareket", "İlaç", "Miktar",
-                 "Birim Fiyat", "Tutar (TL)", "Kümülatif (TL)", "Durum"]
+                 "Birim Fiyat", "Tutar (TL)", "KDV %", "KDV Tutarı (TL)", "Kümülatif (TL)", "Durum"]
     for col, h in enumerate(basliklar, 1):
         c = ws.cell(row=1, column=col, value=h)
         c.fill = hf; c.font = hfont
     for i, h in enumerate(hareketler, 2):
         veren = int(h.get("borc_veren_cari_id", 0))
-        hareket = "📤 Verdi" if veren == cari_a else "📥 Aldı"
+        hareket = "Verdi" if veren == cari_a else "Aldı"
         tutar = hesapla_kalem_tutari(int(h.get("kalem_miktari", 0)), h.get("birim_alis_fiyati", "0"))
+        ilac_id = int(h.get("İlaç ID", 0))
+        kdv_oran = int(kdv_map.get(ilac_id, "0") or "0")
+        kdv_tutar = round(tutar * kdv_oran / 100, 2) if kdv_oran else 0
         ws.cell(row=i, column=1, value=h.get("Belge No", ""))
         ws.cell(row=i, column=2, value=format_tarih(str(h.get("Lot Tarihi", ""))))
         ws.cell(row=i, column=3, value=hareket)
-        ws.cell(row=i, column=4, value=ilac_map.get(int(h.get("İlaç ID", 0)), "?"))
+        ws.cell(row=i, column=4, value=ilac_map.get(ilac_id, "?"))
         ws.cell(row=i, column=5, value=int(h.get("kalem_miktari", 0)))
         ws.cell(row=i, column=6, value=float(to_decimal(h.get("birim_alis_fiyati", "0"))))
         ws.cell(row=i, column=7, value=tutar)
-        ws.cell(row=i, column=8, value=h.get("kumulatif_bakiye", 0))
-        ws.cell(row=i, column=9, value=h.get("durum", ""))
-    widths = [16, 12, 12, 22, 8, 14, 14, 16, 10]
+        ws.cell(row=i, column=8, value=f"%{kdv_oran}" if kdv_oran else "%0")
+        ws.cell(row=i, column=9, value=kdv_tutar)
+        ws.cell(row=i, column=10, value=h.get("kumulatif_bakiye", 0))
+        ws.cell(row=i, column=11, value=h.get("durum", ""))
+        if h.get("durum") == "Silindi":
+            for col in range(1, 12):
+                ws.cell(row=i, column=col).font = Font(color="999999", italic=True)
+    widths = [16, 12, 10, 22, 8, 14, 14, 8, 16, 16, 10]
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
     buf = io.BytesIO(); wb.save(buf); return buf.getvalue()
+
 
 
 # ─── Belge Detay Paneli ───────────────────────────────────────────────────────
@@ -131,6 +140,8 @@ def _belge_detay(belge_no: str, cari_map: Dict, ilac_map: Dict, user_id: int):
     ilk = satirlar[0]
     veren_id = int(ilk.get("borc_veren_cari_id", 0))
     ilac_id = int(ilk.get("İlaç ID", 0))
+    kdv_map = get_ilac_kdv_map()
+    kdv_oran = int(kdv_map.get(ilac_id, "0") or "0")
     lot = format_tarih(str(ilk.get("Lot Tarihi", "")))
     birim = ilk.get("birim_alis_fiyati", "0")
     toplam_miktar = int(ilk.get("Toplam Miktar", 0))
@@ -152,9 +163,10 @@ def _belge_detay(belge_no: str, cari_map: Dict, ilac_map: Dict, user_id: int):
             <div><div style="font-size:0.75rem;color:#64748B;font-weight:500">BORÇ VEREN</div>
                  <div style="font-weight:600;color:#1E293B">{cari_map.get(veren_id,'?')}</div></div>
             <div><div style="font-size:0.75rem;color:#64748B;font-weight:500">İLAÇ</div>
-                 <div style="font-weight:600;color:#1E293B">{ilac_map.get(ilac_id,'?')}</div></div>
+                 <div style="font-weight:600;color:#1E293B">{ilac_map.get(ilac_id,'?')} <span style="font-size:0.8rem;color:#2563EB;font-weight:500">%{kdv_oran} KDV</span></div></div>
             <div><div style="font-size:0.75rem;color:#64748B;font-weight:500">LOT / ALIŞ TARİHİ</div>
                  <div style="font-weight:600;color:#1E293B">{lot}</div></div>
+
             <div><div style="font-size:0.75rem;color:#64748B;font-weight:500">BİRİM ALIŞ FİYATI</div>
                  <div style="font-weight:600;color:#1E293B">{format_birim_fiyat(birim)}</div></div>
             <div><div style="font-size:0.75rem;color:#64748B;font-weight:500">TOPLAM MİKTAR</div>
@@ -330,6 +342,7 @@ def _seviye2(cari_id: int):
 def _seviye3(cari_a: int, cari_b: int, user_id: int):
     from services.borc_service import get_hareketler_normalized
     ilac_map = get_ilac_map()
+    kdv_map = get_ilac_kdv_map()
     cari_map = {int(c["Cari ID"]): str(c["Cari Adı"]) for c in cari_service.get_all_cariler()}
     cari_a_adi = cari_map.get(cari_a, f"Cari#{cari_a}")
     cari_b_adi = cari_map.get(cari_b, f"Cari#{cari_b}")
@@ -369,18 +382,27 @@ def _seviye3(cari_a: int, cari_b: int, user_id: int):
     # Excel export
     col_e, col_i = st.columns([1, 5])
     with col_e:
-        excel = _excel_hareket(hareketler, cari_a_adi, cari_b_adi, cari_a, ilac_map)
+        excel = _excel_hareket(hareketler, cari_a_adi, cari_b_adi, cari_a, ilac_map, kdv_map)
         st.download_button("⬇️ Excel", excel, f"{cari_a_adi}_{cari_b_adi}.xlsx",
                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                            key="dl_har")
 
     # Tablo
-    hcols = st.columns([2, 2, 2, 3, 2, 2, 2, 2, 1])
-    for col, baslik in zip(hcols, ["BELGE NO", "LOT TARİHİ", "HAREKET", "İLAÇ", "MİKTAR", "BİRİM FİYAT", "TUTAR", "KÜMÜLATİF", "DURUM"]):
+    col_widths = [1.8, 1.4, 1.2, 2.0, 1.0, 1.5, 1.5, 1.0, 1.5, 1.6, 0.8]
+    hcols = st.columns(col_widths)
+    basliklar = ["BELGE NO", "LOT TARİHİ", "HAREKET", "İLAÇ", "MİKTAR", "BİRİM FİYAT", "TUTAR", "KDV %", "KDV TUTARI", "KÜMÜLATİF", "DURUM"]
+    for col, baslik in zip(hcols, basliklar):
         col.markdown(f'<span style="font-size:0.75rem;font-weight:600;color:#64748B">{baslik}</span>', unsafe_allow_html=True)
     st.markdown('<hr style="margin:4px 0 8px 0">', unsafe_allow_html=True)
 
     secili_belge = st.session_state.get("dashboard_belge_no")
+
+    def _fmt_kdv(val: float) -> str:
+        if val == 0:
+            return "0 TL"
+        if val == int(val):
+            return f"{int(val):,} TL".replace(",", ".")
+        return f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " TL"
 
     for h in hareketler:
         veren = int(h.get("borc_veren_cari_id", 0))
@@ -390,32 +412,38 @@ def _seviye3(cari_a: int, cari_b: int, user_id: int):
         birim = h.get("birim_alis_fiyati", "0")
         tutar = hesapla_kalem_tutari(miktar, birim)
         kumul = h.get("kumulatif_bakiye", 0)
-        ilac_adi = ilac_map.get(int(h.get("İlaç ID", 0)), "?")
+        ilac_id = int(h.get("İlaç ID", 0))
+        ilac_adi = ilac_map.get(ilac_id, "?")
+        kdv_oran = int(kdv_map.get(ilac_id, "0") or "0")
+        kdv_tutar = round(tutar * kdv_oran / 100, 2) if kdv_oran else 0
         lot = format_tarih(str(h.get("Lot Tarihi", "")))
         belge_no = str(h.get("Belge No", ""))
         durum = str(h.get("durum", ""))
 
-        cols = st.columns([2, 2, 2, 3, 2, 2, 2, 2, 1])
+        cols = st.columns(col_widths)
         with cols[0]:
             if st.button(belge_no, key=f"bn_{belge_no}_{h.get('Kalem No',0)}", use_container_width=True):
                 st.session_state["dashboard_belge_no"] = None if secili_belge == belge_no else belge_no
                 st.rerun()
-        cols[1].markdown(f'<span style="font-size:0.9rem">{lot}</span>', unsafe_allow_html=True)
+        cols[1].markdown(f'<span style="font-size:0.85rem">{lot}</span>', unsafe_allow_html=True)
         cols[2].markdown(f'<span style="color:{hareket_renk};font-weight:600;font-size:0.85rem">{hareket_str}</span>', unsafe_allow_html=True)
-        cols[3].markdown(f'<span style="font-size:0.9rem">{ilac_adi}</span>', unsafe_allow_html=True)
-        cols[4].markdown(f'<span style="font-size:0.9rem">{format_miktar(miktar)}</span>', unsafe_allow_html=True)
+        cols[3].markdown(f'<span style="font-size:0.85rem">{ilac_adi}</span>', unsafe_allow_html=True)
+        cols[4].markdown(f'<span style="font-size:0.85rem">{format_miktar(miktar)}</span>', unsafe_allow_html=True)
         cols[5].markdown(f'<span style="font-size:0.85rem;color:#64748B">{format_birim_fiyat(birim)}</span>', unsafe_allow_html=True)
-        cols[6].markdown(f'<span style="font-weight:600">{format_para(tutar)}</span>', unsafe_allow_html=True)
-        cols[7].markdown(_html_bakiye(kumul), unsafe_allow_html=True)
+        cols[6].markdown(f'<span style="font-weight:600;font-size:0.85rem">{format_para(tutar)}</span>', unsafe_allow_html=True)
+        cols[7].markdown(f'<span style="font-size:0.85rem;color:#1E40AF;font-weight:600">%{kdv_oran}</span>', unsafe_allow_html=True)
+        cols[8].markdown(f'<span style="font-size:0.85rem;color:#475569">{_fmt_kdv(kdv_tutar)}</span>', unsafe_allow_html=True)
+        cols[9].markdown(_html_bakiye(kumul), unsafe_allow_html=True)
         if durum == DURUM_SILINDI:
-            cols[8].markdown('<span style="color:#DC2626;font-size:0.8rem">✕</span>', unsafe_allow_html=True)
+            cols[10].markdown('<span style="color:#DC2626;font-size:0.8rem">✕</span>', unsafe_allow_html=True)
         else:
-            cols[8].markdown('<span style="color:#16A34A;font-size:0.8rem">✓</span>', unsafe_allow_html=True)
+            cols[10].markdown('<span style="color:#16A34A;font-size:0.8rem">✓</span>', unsafe_allow_html=True)
 
     # Belge detay
     if secili_belge:
         st.markdown("---")
         _belge_detay(secili_belge, cari_map, ilac_map, user_id)
+
 
 
 # ─── Ana Render ───────────────────────────────────────────────────────────────

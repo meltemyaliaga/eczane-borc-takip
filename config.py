@@ -28,6 +28,9 @@ SESSION_TIMEOUT_HOURS = 8
 # Örnek: 2026-0000001
 BELGE_NO_YAZI_UZUNLUGU = 7  # Sıra numarasının sıfırla tamamlanacak basamak sayısı
 
+# KDV Oranları (%0 = KDV muaf)
+KDV_ORANLARI = ["0", "1", "10", "20"]
+
 # Sheet Kolon İndeksleri (0-tabanlı)
 CARILER_COLS = {
     "cari_id": 0,
@@ -51,6 +54,7 @@ ILACLAR_COLS = {
     "ilac_adi": 1,
     "durum": 2,
     "olusturulma_tarihi": 3,
+    "kdv_orani": 4,
 }
 
 BORC_HAREKET_COLS = {
@@ -81,7 +85,7 @@ KULLANICILAR_HEADERS = [
 ]
 
 ILACLAR_HEADERS = [
-    "İlaç ID", "İlaç Adı", "Durum", "Oluşturulma Tarihi"
+    "İlaç ID", "İlaç Adı", "Durum", "Oluşturulma Tarihi", "KDV Oranı"
 ]
 
 BORC_HAREKET_HEADERS = [

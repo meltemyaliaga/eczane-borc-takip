@@ -291,6 +291,10 @@ def kaydet_borc_belgesi(
     """
     olusturulma_tarihi = _now_istanbul().strftime("%Y-%m-%d %H:%M:%S")
 
+    # Birim fiyatı float olarak sakla (string "20.0000" → Türkçe locale'de yanlış yorumlanıyor)
+    from decimal import Decimal as _D
+    birim_float = float(_D(str(birim_alis_fiyati)))
+
     rows = []
     for kalem_no, satir in enumerate(dagitim, start=1):
         row = [
@@ -299,7 +303,7 @@ def kaydet_borc_belgesi(
             borc_veren_cari_id,               # Borç Veren Cari ID
             ilac_id,                           # İlaç ID
             lot_tarihi,                        # Lot Tarihi
-            birim_alis_fiyati,                 # Birim Alış Fiyatı
+            birim_float,                       # Birim Alış Fiyatı (float, locale-bağımsız)
             toplam_miktar,                     # Toplam Miktar
             satir["cari_id"],                  # Borç Alan Cari ID
             satir["miktar"],                   # Kalem Miktarı
@@ -318,6 +322,7 @@ def kaydet_borc_belgesi(
     _verify_belge_no_uniqueness(belge_no, len(rows))
 
     return belge_no
+
 
 
 def _verify_belge_no_uniqueness(belge_no: str, beklenen_satir_sayisi: int) -> None:
