@@ -9,11 +9,30 @@ from typing import List, Dict, Optional
 
 
 def to_decimal(value) -> Decimal:
-    """Herhangi bir değeri güvenli şekilde Decimal'e çevirir."""
-    try:
+    """Herhangi bir değeri güvenli şekilde Decimal'e çevirir (Türkçe virgül/nokta desteğiyle)."""
+    if value is None:
+        return Decimal("0")
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, (int, float)):
         return Decimal(str(value))
+
+    s = str(value).strip().replace("TL", "").replace("₺", "").strip()
+    if not s:
+        return Decimal("0")
+
+    if "." in s and "," in s:
+        # Örnek: "1.250,50" -> binlik nokta, ondalık virgül
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        # Örnek: "20,00" -> ondalık virgül
+        s = s.replace(",", ".")
+
+    try:
+        return Decimal(s)
     except (InvalidOperation, TypeError, ValueError):
         raise ValueError(f"Geçersiz sayısal değer: {value!r}")
+
 
 
 def round_half_up_to_int(value: Decimal) -> int:
