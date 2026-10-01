@@ -44,13 +44,16 @@ def format_birim_fiyat(fiyat: Union[Decimal, str, float]) -> str:
     Örnek:
         Decimal("10.1234") → "10,1234 TL"
         "9.5"              → "9,5000 TL"
+        "20,00"            → "20,0000 TL"
     """
-    d = Decimal(str(fiyat))
+    from utils.calculations import to_decimal
+    d = to_decimal(fiyat)
     tam_kisim = int(d)
     ondalik = d - Decimal(str(tam_kisim))
     tam_str = f"{tam_kisim:,}".replace(",", ".")
     ondalik_str = f"{ondalik:.4f}"[2:]  # "0.xxxx" → "xxxx"
     return f"{tam_str},{ondalik_str} TL"
+
 
 
 def format_miktar(miktar: int) -> str:
